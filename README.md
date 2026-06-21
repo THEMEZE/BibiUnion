@@ -985,7 +985,7 @@ class PhotoAdmin(admin.ModelAdmin):
 </html>
 ```
 
-## templates/`upload.html`
+## 'templates/upload.html`
 
 ```html
 {% extends "base.html" %}
@@ -1192,7 +1192,7 @@ class PhotoAdmin(admin.ModelAdmin):
 {% endblock %}
 ```
 
-## static/css/`style.css`
+## 'static/css/style.css`
 
 ```css
 /* ============================================
