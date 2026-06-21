@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Galerie - Mariage{% endblock %}
+
+{% block content %}
+<div class="gallery-container">
+    <h2 class="page-title">Galerie des souvenirs ✨</h2>
+
+    <div class="gallery-filters">
+        <select id="filter-table" class="input-field">
+            <option value="">Toutes les tables</option>
+            {% for value, label in table_choices %}
+                {% if value %}
+                    <option value="{{ value }}">{{ label }}</option>
+                {% endif %}
+            {% endfor %}
+        </select>
+
+        <input type="date" id="filter-date" class="input-field">
+
+        <button id="reset-filters" class="btn btn-outline">Réinitialiser</button>
+
+        <label class="toggle-realtime">
+            <input type="checkbox" id="toggle-slideshow">
+            <span>Diaporama auto</span>
+        </label>
+    </div>
+
+    <div id="gallery-grid" class="gallery-grid"></div>
+
+    <div id="gallery-loader" class="gallery-loader" style="display:none;">
+        Chargement...
+    </div>
+
+    <div id="gallery-empty" class="gallery-empty" style="display:none;">
+        Aucune photo pour le moment. Soyez le premier à en partager !
+    </div>
+</div>
+
+<!-- Lightbox plein écran -->
+<div id="lightbox" class="lightbox" style="display:none;">
+    <button class="lightbox-close" id="lightbox-close">&times;</button>
+    <button class="lightbox-prev" id="lightbox-prev">&#8249;</button>
+    <img id="lightbox-img" class="lightbox-img" src="" alt="Photo en plein écran">
+    <button class="lightbox-next" id="lightbox-next">&#8250;</button>
+    <div class="lightbox-caption" id="lightbox-caption"></div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    window.GALLERY_DATA_URL = "{% url 'gallery_data' %}";
+</script>
+{% endblock %}

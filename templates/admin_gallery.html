@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Administration - Mariage{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <h2 class="page-title">Administration de la galerie</h2>
+
+    <div class="admin-stats">
+        <p><strong>{{ total_count }}</strong> photo(s) au total</p>
+    </div>
+
+    {% if qr_url %}
+    <div class="qr-section">
+        <h3>QR Code d'accès</h3>
+        <img src="{{ qr_url }}" alt="QR Code" class="qr-image">
+        <p class="qr-url">{{ site_public_url }}</p>
+    </div>
+    {% endif %}
+
+    <div class="admin-filters">
+        <form method="get" class="filter-form">
+            <select name="table" class="input-field">
+                <option value="">Toutes les tables</option>
+                {% for value, label in table_choices %}
+                    {% if value %}
+                        <option value="{{ value }}" {% if value == selected_table %}selected{% endif %}>{{ label }}</option>
+                    {% endif %}
+                {% endfor %}
+            </select>
+
+            <input type="date" name="date" value="{{ selected_date }}" class="input-field">
+
+            <button type="submit" class="btn btn-outline">Filtrer</button>
+            <a href="{% url 'admin_gallery' %}" class="btn btn-outline">Réinitialiser</a>
+        </form>
+
+        <a href="{% url 'download_zip' %}?table={{ selected_table }}&date={{ selected_date }}" class="btn btn-primary">
+            Télécharger tout en ZIP
+        </a>
+    </div>
+
+    <div class="admin-grid">
+        {% for photo in page_obj %}
+        <div class="admin-card" data-id="{{ photo.id }}">
+            <img src="{{ photo.thumbnail.url|default:photo.image.url }}" alt="Photo" class="admin-thumb">
+            <div class="admin-card-info">
+                <p class="admin-author">{{ photo.auteur|default:"Anonyme" }}</p>
+                {% if photo.table %}<p class="admin-table">{{ photo.get_table_display }}</p>{% endif %}
+                <p class="admin-date">{{ photo.date_upload|date:"d/m/Y H:i" }}</p>
+            </div>
+            <div class="admin-actions">
+                <a href="{% url 'download_photo' photo.id %}" class="btn-icon" title="Télécharger">⬇️</a>
+                <button class="btn-icon delete-btn" data-id="{{ photo.id }}" title="Supprimer">🗑️</button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="pagination">
+        {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}&table={{ selected_table }}&date={{ selected_date }}" class="btn btn-outline">Précédent</a>
+        {% endif %}
+        <span>Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}&table={{ selected_table }}&date={{ selected_date }}" class="btn btn-outline">Suivant</a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    window.DELETE_URL_TEMPLATE = "/admin-gallery/delete/0/";
+    window.CSRF_TOKEN = "{{ csrf_token }}";
+</script>
+{% endblock %}
