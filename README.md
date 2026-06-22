@@ -128,12 +128,12 @@ if __name__ == '__main__':
     execute_from_command_line(sys.argv)
 ```
 
-## mariage/`__init__.py`
+## `mariage/__init__.py`
 
 ```python
 ```
 
-## mariage/`settings.py`
+## `mariage/settings.py`
 
 ```python
 import os
@@ -151,14 +151,14 @@ DEBUG = False
 
 # Domaines autorisés (ajoutez votre domaine Cloudflare)
 ALLOWED_HOSTS = [
-    'photos-mariage.mondomaine.fr',
+    'photos.bibiunion.fr',
     'localhost',
     '127.0.0.1',
 ]
 
 # Cloudflare Tunnel transmet en HTTPS -> faire confiance au header proxy
 CSRF_TRUSTED_ORIGINS = [
-    'https://photos-mariage.mondomaine.fr',
+    'https://photos.bibiunion.fr',
 ]
 
 USE_X_FORWARDED_HOST = True
@@ -270,7 +270,7 @@ MAX_IMAGE_WIDTH = 1920
 THUMBNAIL_WIDTH = 400
 
 # URL publique du site (pour le QR Code)
-SITE_PUBLIC_URL = 'https://photos-mariage.mondomaine.fr'
+SITE_PUBLIC_URL = 'https://photos.bibiunion.fr'
 
 # Liste des tables (modifiable selon votre plan de salle)
 TABLE_CHOICES = [
@@ -2495,9 +2495,9 @@ sudo systemctl status gunicorn-mariage.service
 
 ## 12.1 Création du compte Cloudflare
 
-1- Aller sur (https://dash.cloudflare.com) et créer un compte gratuit.
-2- Ajouter votre domaine (`mondomaine.fr`) — suivre les instructions pour changer les serveurs DNS chez votre registrar vers ceux fournis par Cloudflare.
-3- Attendre l'activation du domaine (DNS propagé, peut prendre jusqu'à 24h, souvent quelques minutes).
+1. Aller sur (https://dash.cloudflare.com) et créer un compte gratuit.
+2. Ajouter votre domaine (`mondomaine.fr`) — suivre les instructions pour changer les serveurs DNS chez votre registrar vers ceux fournis par Cloudflare.
+3. Attendre l'activation du domaine (DNS propagé, peut prendre jusqu'à 24h, souvent quelques minutes).
 
 ## 12.2 Installation de cloudflared sur le Raspberry Pi
 
@@ -2580,7 +2580,7 @@ Tester depuis un téléphone (4G/5G, différent du réseau du Pi) : ouvrir `http
 
 # 13. Installation Raspberry Pi
 
-## `install.sh``
+## `install.sh`
 
 ```bash 
 #!/bin/bash
@@ -2590,7 +2590,7 @@ echo "=========================================="
 echo "  Installation - Application Mariage"
 echo "=========================================="
 
-PROJECT_DIR="/home/pi/mariage"
+PROJECT_DIR="/mnt/mariage_data/BibiUnion"
 VENV_DIR="$PROJECT_DIR/venv"
 
 # ============================================
@@ -2695,9 +2695,9 @@ mkdir -p deploy
 
 ```bash 
 # 1. Cloner / copier le projet sur le Pi
-cd /home/pi
-git clone https://github.com/THEMEZE/BibiUnion.git   # ou scp depuis votre PC
-cd BibiUnion
+cd /mnt/mariage_data/
+#git clone https://github.com/THEMEZE/BibiUnion.git   # ou scp depuis votre PC
+#cd BibiUnion
 
 # 2. Lancer l'installation
 chmod +x install.sh
@@ -2707,7 +2707,7 @@ chmod +x install.sh
 cloudflared tunnel login
 cloudflared tunnel create mariage
 nano ~/.cloudflared/config.yml
-cloudflared tunnel route dns mariage photos-mariage.mondomaine.fr
+cloudflared tunnel route dns mariage bibiunion.fr
 sudo cloudflared service install
 sudo systemctl enable --now cloudflared
 

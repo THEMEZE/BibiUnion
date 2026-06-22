@@ -13,14 +13,14 @@ DEBUG = False
 
 # Domaines autorisés (ajoutez votre domaine Cloudflare)
 ALLOWED_HOSTS = [
-    'photos-mariage.mondomaine.fr',
+    'likewise-reporters-health-null.trycloudflare.com',
     'localhost',
     '127.0.0.1',
 ]
 
 # Cloudflare Tunnel transmet en HTTPS -> faire confiance au header proxy
 CSRF_TRUSTED_ORIGINS = [
-    'https://photos-mariage.mondomaine.fr',
+    'https://likewise-reporters-health-null.trycloudflare.com',
 ]
 
 USE_X_FORWARDED_HOST = True
@@ -132,7 +132,7 @@ MAX_IMAGE_WIDTH = 1920
 THUMBNAIL_WIDTH = 400
 
 # URL publique du site (pour le QR Code)
-SITE_PUBLIC_URL = 'https://photos-mariage.mondomaine.fr'
+SITE_PUBLIC_URL = 'https://likewise-reporters-health-null.trycloudflare.com'
 
 # Liste des tables (modifiable selon votre plan de salle)
 TABLE_CHOICES = [

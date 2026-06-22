@@ -5,7 +5,7 @@ echo "=========================================="
 echo "  Installation - Application Mariage"
 echo "=========================================="
 
-PROJECT_DIR="/home/pi/mariage"
+PROJECT_DIR="/mnt/mariage_data/BibiUnion"
 VENV_DIR="$PROJECT_DIR/venv"
 
 # ============================================
