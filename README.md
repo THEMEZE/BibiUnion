@@ -2395,6 +2395,7 @@ python manage.py createsuperuser
 
 ## /etc/nginx/sites-available/mariage
 
+
 ```nginx
 server {
     listen 80;
@@ -2429,6 +2430,41 @@ server {
 }
 ```
 
+```bash
+mkdir -p deploy
+```
+
+```bash
+cat > /deploy/nginx-mariage.conf << 'EOF'
+server {
+    listen 80;
+    server_name localhost 127.0.0.1;
+
+    client_max_body_size 60M;
+
+    location /static/ {
+        alias /mnt/mariage_data/BibiUnion/staticfiles/;
+        expires 30d;
+    }
+
+    location /media/ {
+        alias /mnt/mariage_data/BibiUnion/media/;
+        expires 7d;
+    }
+
+    location / {
+        proxy_pass http://unix:/run/gunicorn-mariage.sock;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300;
+        proxy_send_timeout 300;
+    }
+}
+EOF
+```
+
 Activation :
 
 ```bash 
@@ -2457,6 +2493,23 @@ WantedBy=sockets.target
 ```
 
 
+```bash
+cat > /deploy/gunicorn-mariage.socket << 'EOF'
+[Unit]
+Description=Socket Gunicorn pour mariage
+
+[Socket]
+ListenStream=/run/gunicorn-mariage.sock
+SocketUser=www-data
+SocketGroup=www-data
+SocketMode=0660
+
+[Install]
+WantedBy=sockets.target
+EOF
+```
+
+
 ## /etc/systemd/system/gunicorn-mariage.service
 
 ```ìni 
@@ -2480,6 +2533,32 @@ ExecStart=/home/pi/mariage/venv/bin/gunicorn \
 [Install]
 WantedBy=multi-user.target
 ```
+
+```bash
+cat > /deploy/gunicorn-mariage.service << 'EOF'
+[Unit]
+Description=Gunicorn daemon pour le site mariage
+Requires=gunicorn-mariage.socket
+After=network.target
+
+[Service]
+User=pi
+Group=www-data
+WorkingDirectory=/mnt/mariage_data/BibiUnion
+ExecStart=/mnt/mariage_data/BibiUnion/venv/bin/gunicorn \
+          --access-logfile /mnt/mariage_data/BibiUnion/logs/gunicorn-access.log \
+          --error-logfile /mnt/mariage_data/BibiUnion/logs/gunicorn-error.log \
+          --workers 2 \
+          --timeout 120 \
+          --bind unix:/run/gunicorn-mariage.sock \
+          mariage.wsgi:application
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+
 
 Activation :
 
@@ -2576,6 +2655,172 @@ sudo journalctl -u cloudflared -f
 Tester depuis un téléphone (4G/5G, différent du réseau du Pi) : ouvrir `https://photos-mariage.mondomaine.fr/upload/`.
 
 **Avantage clé** : l'URL reste identique même si le Raspberry change de réseau (Wi-Fi maison → partage de connexion), car le tunnel est une connexion sortante initiée par le Pi — aucune redirection de port ni IP fixe nécessaire.
+
+## 12.8 Start_tunnel
+
+```bash
+#!/bin/bash
+
+SETTINGS="/mnt/mariage_data/BibiUnion/mariage/settings.py"
+
+echo "Démarrage du tunnel Cloudflare..."
+
+# Lance cloudflared en arrière-plan et capture l'URL
+cloudflared tunnel --url http://localhost:80 2>&1 &
+TUNNEL_PID=$!
+
+# Attend que l'URL apparaisse dans les logs
+URL=""
+echo "En attente de l'URL du tunnel..."
+while [ -z "$URL" ]; do
+    sleep 2
+    URL=$(curl -s http://127.0.0.1:20241/metrics 2>/dev/null | grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' | head -1)
+done
+
+echo "URL détectée : $URL"
+HOSTNAME=$(echo $URL | sed 's|https://||')
+
+# Met à jour settings.py
+sed -i "s|'[^']*\.trycloudflare\.com'|'$HOSTNAME'|g" "$SETTINGS"
+sed -i "s|SITE_PUBLIC_URL = '.*'|SITE_PUBLIC_URL = '$URL'|g" "$SETTINGS"
+
+echo "settings.py mis à jour avec : $HOSTNAME"
+
+# Redémarre gunicorn
+sudo systemctl restart gunicorn-mariage
+echo "Gunicorn redémarré ✅"
+
+# Régénère le QR Code avec la nouvelle URL
+cd /mnt/mariage_data/BibiUnion
+source venv/bin/activate
+python manage.py generate_qrcode
+echo "QR Code régénéré ✅"
+
+echo ""
+echo "========================================"
+echo "  Site accessible sur : $URL/upload/"
+echo "========================================"
+
+# Garde le tunnel en premier plan
+wait $TUNNEL_PID
+```
+
+```bash
+cat > start_tunnel.sh << 'EOF'
+#!/bin/bash
+
+SETTINGS="/mnt/mariage_data/BibiUnion/mariage/settings.py"
+
+echo "Démarrage du tunnel Cloudflare..."
+
+# Lance cloudflared en arrière-plan et capture l'URL
+cloudflared tunnel --url http://localhost:80 2>&1 &
+TUNNEL_PID=$!
+
+# Attend que l'URL apparaisse dans les logs
+URL=""
+echo "En attente de l'URL du tunnel..."
+while [ -z "$URL" ]; do
+    sleep 2
+    URL=$(curl -s http://127.0.0.1:20241/metrics 2>/dev/null | grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' | head -1)
+done
+
+echo "URL détectée : $URL"
+HOSTNAME=$(echo $URL | sed 's|https://||')
+
+# Met à jour settings.py
+sed -i "s|'[^']*\.trycloudflare\.com'|'$HOSTNAME'|g" "$SETTINGS"
+sed -i "s|https://[^']*\.trycloudflare\.com|$URL|g" "$SETTINGS"
+sed -i "s|SITE_PUBLIC_URL = '.*'|SITE_PUBLIC_URL = '$URL'|g" "$SETTINGS"
+
+
+echo "settings.py mis à jour avec : $HOSTNAME"
+
+# Redémarre gunicorn
+sudo systemctl restart gunicorn-mariage
+echo "Gunicorn redémarré ✅"
+
+# Régénère le QR Code avec la nouvelle URL
+cd /mnt/mariage_data/BibiUnion
+source venv/bin/activate
+python manage.py generate_qrcode
+echo "QR Code régénéré ✅"
+
+echo ""
+echo "========================================"
+echo "  Site accessible sur : $URL/upload/"
+echo "========================================"
+
+# Garde le tunnel en premier plan
+wait $TUNNEL_PID
+EOF
+
+chmod +x ./start_tunnel.sh
+```
+
+```bash
+cat > ./start_tunnel.sh << 'EOF'
+#!/bin/bash
+
+SETTINGS="./mariage/settings.py"
+
+echo "Démarrage du tunnel Cloudflare..."
+
+# Lance cloudflared en arrière-plan et capture l'URL
+cloudflared tunnel --url http://localhost:80 2>&1 &
+TUNNEL_PID=$!
+
+# Attend que l'URL apparaisse dans les logs
+URL=""
+echo "En attente de l'URL du tunnel..."
+while [ -z "$URL" ]; do
+    sleep 2
+    URL=$(curl -s http://127.0.0.1:20241/metrics 2>/dev/null | grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' | head -1)
+done
+
+echo "URL détectée : $URL"
+HOSTNAME=$(echo $URL | sed 's|https://||')
+# Met à jour settings.py
+
+# ALLOWED_HOSTS : sans https://
+sed -i "/ALLOWED_HOSTS/,/\]/{s|'[^']*\.trycloudflare\.com'|'$HOSTNAME'|g}" "$SETTINGS"
+
+# CSRF_TRUSTED_ORIGINS : avec https://
+sed -i "/CSRF_TRUSTED_ORIGINS/,/\]/{s|'[^']*\.trycloudflare\.com'|'$URL'|g}" "$SETTINGS"
+
+# SITE_PUBLIC_URL : avec https://
+sed -i "s|SITE_PUBLIC_URL = '.*'|SITE_PUBLIC_URL = '$URL'|g" "$SETTINGS"
+
+echo "settings.py mis à jour avec : $HOSTNAME"
+
+sudo systemctl restart gunicorn-mariage
+echo "Gunicorn redémarré ✅"
+
+# Redémarre gunicorn
+#cd /mnt/mariage_data/BibiUnion
+source venv/bin/activate
+python manage.py generate_qrcode
+echo "QR Code régénéré ✅"
+
+echo ""
+echo "========================================"
+echo "  Site accessible sur : $URL/upload/"
+echo "========================================"
+
+# Garde le tunnel en premier plan
+wait $TUNNEL_PID
+EOF
+
+chmod +x ./start_tunnel.sh
+```
+
+
+Utilisation
+
+```bash
+chmod +x ./start_tunnel.sh
+sudo ./start_tunnel.sh
+```
 
 
 # 13. Installation Raspberry Pi
@@ -2696,13 +2941,35 @@ mkdir -p deploy
 ```bash 
 # 1. Cloner / copier le projet sur le Pi
 cd /mnt/mariage_data/
-#git clone https://github.com/THEMEZE/BibiUnion.git   # ou scp depuis votre PC
-#cd BibiUnion
+[ -d BibiUnion ] && rm -rf BibiUnion
+git clone https://github.com/THEMEZE/BibiUnion.git   # ou scp depuis votre PC
+cd BibiUnion
+
+#cd /mnt/mariage_data && rm -rf BibiUnion && git clone https://github.com/THEMEZE/BibiUnion.git && cd BibiUnion
 
 # 2. Lancer l'installation
 chmod +x install.sh
 ./install.sh
 
+# 3. Démarrer le tunnel (à chaque redémarrage du Pi)
+chmod +x start_tunnel.sh
+sudo ./start_tunnel.sh
+```
+
+> `start_tunnel.sh` fait automatiquement : tunnel Cloudflare + mise à jour 
+> `settings.py` + redémarrage Gunicorn + régénération du QR Code.
+
+Démarrage automatique au boot (optionnel)
+
+```bash
+sudo crontab -e
+# Ajouter :
+@reboot sleep 15 && /mnt/mariage_data/BibiUnion/start_tunnel.sh >> /mnt/mariage_data/BibiUnion/logs/tunnel.log 2>&1
+```
+
+### Si dommain fixe
+
+```bash 
 # 3. Configurer Cloudflare Tunnel (section 12)
 cloudflared tunnel login
 cloudflared tunnel create mariage
@@ -2778,21 +3045,21 @@ mkdir -p /mnt/usb/backup_mariage
 DATE=$(date +%Y%m%d_%H%M%S)
 
 tar -czf /mnt/usb/backup_mariage/mariage_backup_$DATE.tar.gz \
-    /home/pi/mariage/media \
-    /home/pi/mariage/db.sqlite3
+    /mnt/usb/backup_mariage/media \
+    /mnt/usb/backup_mariage/db.sqlite3
 
 echo "Sauvegarde créée : /mnt/usb/backup_mariage/mariage_backup_$DATE.tar.gz"
 ```
 
 ## Script de sauvegarde automatique
 
-Créer `/home/pi/mariage/backup.sh` :
+Créer `/mnt/mariage_data/backup.sh` :
 
 ```bash 
 #!/bin/bash
 set -e
 
-SOURCE_DIR="/home/pi/mariage"
+SOURCE_DIR="/mnt/mariage_data/BibiUnion"
 BACKUP_DIR="/mnt/usb/backup_mariage"
 DATE=$(date +%Y%m%d_%H%M%S)
 RETENTION_DAYS=30
@@ -2819,7 +3086,7 @@ crontab -e
 Ajouter la ligne :
 
 ```cron
-0 3 * * * /home/pi/mariage/backup.sh >> /home/pi/mariage/logs/backup.log 2>&1
+0 3 * * * /mnt/mariage_data/BibiUnion/backup.sh >> /mnt/mariage_data/BibiUnion/logs/backup.log 2>&1
 ```
 
 ## Restauration
@@ -2829,7 +3096,7 @@ Ajouter la ligne :
 sudo systemctl stop gunicorn-mariage
 
 # Restaurer depuis une archive
-cd /home/pi/mariage
+cd /mnt/mariage_data/BibiUnion
 tar -xzf /mnt/usb/backup_mariage/mariage_backup_YYYYMMDD_HHMMSS.tar.gz -C /
 
 # Redémarrer

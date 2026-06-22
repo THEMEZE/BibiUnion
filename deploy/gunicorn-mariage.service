@@ -1,0 +1,19 @@
+[Unit]
+Description=Gunicorn daemon pour le site mariage
+Requires=gunicorn-mariage.socket
+After=network.target
+
+[Service]
+User=pi
+Group=www-data
+WorkingDirectory=/home/pi/mariage
+ExecStart=/home/pi/mariage/venv/bin/gunicorn \
+          --access-logfile /home/pi/mariage/logs/gunicorn-access.log \
+          --error-logfile /home/pi/mariage/logs/gunicorn-error.log \
+          --workers 2 \
+          --timeout 120 \
+          --bind unix:/run/gunicorn-mariage.sock \
+          mariage.wsgi:application
+
+[Install]
+WantedBy=multi-user.target

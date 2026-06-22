@@ -1,0 +1,11 @@
+[Unit]
+Description=Socket Gunicorn pour mariage
+
+[Socket]
+ListenStream=/run/gunicorn-mariage.sock
+SocketUser=www-data
+SocketGroup=www-data
+SocketMode=0660
+
+[Install]
+WantedBy=sockets.target
