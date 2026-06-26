@@ -2484,6 +2484,7 @@ sudo systemctl restart nginx
 # 11. Gunicorn (architecture correcte socket systemd)
 
 👉 IMPORTANT : on utilise socket activation systemd uniquement
+
 ❌ PAS de --bind unix: dans gunicorn service
 
 ## /etc/systemd/system/gunicorn-mariage.socket
@@ -2580,7 +2581,28 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now gunicorn-mariage.socket
 sudo systemctl enable --now gunicorn-mariage.service
 sudo systemctl status gunicorn-mariage.service
+#🔍 Vérification
+sudo systemctl status gunicorn-mariage.service
+sudo systemctl status gunicorn-mariage.socket
+
+curl -I http://localhost
 ```
+
+#### 🧠 Architecture finale (corrigée)
+
+````
+Cloudflare
+   ↓
+cloudflared tunnel
+   ↓
+nginx
+   ↓
+/run/gunicorn-mariage.sock (systemd socket)
+   ↓
+gunicorn (venv correct)
+   ↓
+Django
+````
 
 # 12. Cloudflare Tunnel — Guide complet
 
@@ -2972,11 +2994,33 @@ sudo ./start_tunnel.sh
 cat > run_reset.sh << 'EOF'
 #!/bin/bash
 
-# 1. Cloner / copier le projet sur le Pi
+# 1. Aller dans le répertoire cible
 cd /mnt/mariage_data/
+
+# 2. Choix du dépôt
+echo "Quel dépôt veux-tu cloner ?"
+echo "1) BibiUnion"
+echo "2) BibiUnion2"
+read -p "Choix (1 ou 2) : " choice
+
+# 3. Définir l'URL selon le choix
+if [ "$choice" = "1" ]; then
+    REPO="https://github.com/THEMEZE/BibiUnion.git"
+elif [ "$choice" = "2" ]; then
+    REPO="https://github.com/THEMEZE/BibiUnion2.git"
+else
+    echo "Choix invalide"
+    exit 1
+fi
+
+# 4. Nettoyage du dossier cible
 [ -d BibiUnion ] && rm -rf BibiUnion
-git clone https://github.com/THEMEZE/BibiUnion.git   # ou scp depuis votre PC
+
+# 5. Clone toujours dans le même dossier
+git clone "$REPO" BibiUnion
+
 cd BibiUnion
+echo "Clone terminé : $REPO"
 
 #cd /mnt/mariage_data && rm -rf BibiUnion && git clone https://github.com/THEMEZE/BibiUnion.git && cd BibiUnion
 
