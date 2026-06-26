@@ -2407,13 +2407,13 @@ server {
     error_log /var/log/nginx/mariage_error.log;
 
     location /static/ {
-        alias /home/pi/mariage/staticfiles/;
+        alias /mnt/mariage_data/BibiUnion/staticfiles/;
         expires 30d;
         add_header Cache-Control "public";
     }
 
     location /media/ {
-        alias /home/pi/mariage/media/;
+        alias /mnt/mariage_data/BibiUnion/media/;
         expires 7d;
         add_header Cache-Control "public";
     }
@@ -2435,21 +2435,26 @@ mkdir -p deploy
 ```
 
 ```bash
-cat > /deploy/nginx-mariage.conf << 'EOF'
+cat > ./deploy/nginx-mariage.conf << 'EOF'
 server {
     listen 80;
-    server_name localhost 127.0.0.1;
+    server_name photos-mariage.mondomaine.fr localhost 127.0.0.1;
 
     client_max_body_size 60M;
+
+    access_log /var/log/nginx/mariage_access.log;
+    error_log /var/log/nginx/mariage_error.log;
 
     location /static/ {
         alias /mnt/mariage_data/BibiUnion/staticfiles/;
         expires 30d;
+        add_header Cache-Control "public";
     }
 
     location /media/ {
         alias /mnt/mariage_data/BibiUnion/media/;
         expires 7d;
+        add_header Cache-Control "public";
     }
 
     location / {
@@ -2465,16 +2470,21 @@ server {
 EOF
 ```
 
-Activation :
+Activation Nginx :
 
 ```bash 
-sudo ln -s /etc/nginx/sites-available/mariage /etc/nginx/sites-enabled/mariage
+sudo ln -sf /mnt/mariage_data/BibiUnion/deploy/nginx-mariage.conf /etc/nginx/sites-available/mariage
+sudo ln -sf /etc/nginx/sites-available/mariage /etc/nginx/sites-enabled/mariage
 sudo rm -f /etc/nginx/sites-enabled/default
+
 sudo nginx -t
 sudo systemctl restart nginx
 ```
 
-# 11. Gunicorn
+# 11. Gunicorn (architecture correcte socket systemd)
+
+👉 IMPORTANT : on utilise socket activation systemd uniquement
+❌ PAS de --bind unix: dans gunicorn service
 
 ## /etc/systemd/system/gunicorn-mariage.socket
 
@@ -2494,7 +2504,7 @@ WantedBy=sockets.target
 
 
 ```bash
-cat > /deploy/gunicorn-mariage.socket << 'EOF'
+cat > ./deploy/gunicorn-mariage.socket << 'EOF'
 [Unit]
 Description=Socket Gunicorn pour mariage
 
@@ -2521,13 +2531,13 @@ After=network.target
 [Service]
 User=pi
 Group=www-data
-WorkingDirectory=/home/pi/mariage
-ExecStart=/home/pi/mariage/venv/bin/gunicorn \
-          --access-logfile /home/pi/mariage/logs/gunicorn-access.log \
-          --error-logfile /home/pi/mariage/logs/gunicorn-error.log \
+WorkingDirectory=/mnt/mariage_data/BibiUnion
+
+ExecStart=/mnt/mariage_data/BibiUnion/venv/bin/gunicorn \
+          --access-logfile /mnt/mariage_data/BibiUnion/logs/gunicorn-access.log \
+          --error-logfile /mnt/mariage_data/BibiUnion/logs/gunicorn-error.log \
           --workers 2 \
           --timeout 120 \
-          --bind unix:/run/gunicorn-mariage.sock \
           mariage.wsgi:application
 
 [Install]
@@ -2535,7 +2545,7 @@ WantedBy=multi-user.target
 ```
 
 ```bash
-cat > /deploy/gunicorn-mariage.service << 'EOF'
+cat > ./deploy/gunicorn-mariage.service << 'EOF'
 [Unit]
 Description=Gunicorn daemon pour le site mariage
 Requires=gunicorn-mariage.socket
@@ -2545,12 +2555,12 @@ After=network.target
 User=pi
 Group=www-data
 WorkingDirectory=/mnt/mariage_data/BibiUnion
+
 ExecStart=/mnt/mariage_data/BibiUnion/venv/bin/gunicorn \
           --access-logfile /mnt/mariage_data/BibiUnion/logs/gunicorn-access.log \
           --error-logfile /mnt/mariage_data/BibiUnion/logs/gunicorn-error.log \
           --workers 2 \
           --timeout 120 \
-          --bind unix:/run/gunicorn-mariage.sock \
           mariage.wsgi:application
 
 [Install]
@@ -2563,7 +2573,9 @@ EOF
 Activation :
 
 ```bash 
-mkdir -p /home/pi/mariage/logs
+#📁 Préparation des logs
+mkdir -p /mnt/mariage_data/BibiUnion/logs
+#🚀 Activation complète
 sudo systemctl daemon-reload
 sudo systemctl enable --now gunicorn-mariage.socket
 sudo systemctl enable --now gunicorn-mariage.service
